@@ -1,0 +1,246 @@
+---
+title: "HW6"
+author: "Xiaoxia Champon"
+date: "9/29/2021"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache = TRUE)
+
+library(dplyr)
+library(igraph)
+library(extraDistr)
+library(RSpectra)
+library(ggplot2)
+```
+**1**
+*Prove that* $\beta^*=\arg\min f(\beta)=median\{x_i\}$.\newline
+
+$$
+  \frac{d}{d\beta}|x_i-\beta| = sign(x_i-\beta)
+$$
+derivative is undefined for $\beta=x_1,\dots,x_m$. 
+$$
+  f'(\beta)
+  =\sum_{i=1}^m sign(x_i-\beta)
+$$
+Now, this will be 0 if the number of times $x_i-\beta>0$ is the same as the number of times $x_i-\beta<0$. This will be the case if $\beta=median\{x_i\}$. \newline
+
+*Prove that $f(\beta)$ is convex and continuous, but not differentiable.*\newline
+
+Choose $\alpha\in[0,1]$.
+\begin{align*}
+  f(\alpha\beta_1+(1-\alpha)\beta_2)
+  &=\sum_{i=1}^m|x_i-(\alpha\beta_1+(1-\alpha)\beta_2)|\\
+  &=\sum_{i=1}^m |\alpha x_i+(1-\alpha)x_i-(\alpha\beta_1+(1-\alpha)\beta_2)|\\
+  &\leq\sum_{i=1}^m\alpha|x_i-\beta_1|+(1-\alpha)|x_i-\beta_2|\\
+  &=\alpha f(\beta_1)+(1-\alpha)f(\beta_2)
+\end{align*}
+So $f$ is convex. For continuity. We know that $|x_i-\beta|$ is continuous for each $i$ since absolute value is a continuous function. And he sum of continuous function is continuous.
+
+So $f(\beta)$ is continous. However, the derivative is undefined at $\beta=x_1,\dots,x_m$ so we don't have differentiability.\newline
+
+Implement the search methods:
+
+```{r, eval=FALSE}
+section_search <- function(fn, l, u, eps=1e-5){
+  beta.star <- runif(1,l,u)
+  iter=1
+  
+  while(abs(u-l)>eps){
+    beta.new <- runif(1,l,u)
+    
+    if(fn(beta.new) < fn(beta.star)){
+      beta.star <- beta.new
+    }else if(beta.star < beta.new){
+      l = l
+      u = beta.new
+    }else{
+      l = beta.new
+      u = u
+    }
+    iter = iter+1
+  }  
+  
+  return(list(0.5*(l+u),iter))
+}
+
+golden_search <- function(f, l, u, eps=1e-5){
+  phi = (sqrt(5)-1)/2
+  beta.star <- u - phi*(u-l)
+  iter=1
+  
+  while(abs(u-l)>eps){
+    beta.new <- l + u - beta.star
+    
+    if(f(beta.new) < f(beta.star)){
+      beta.star <- beta.new
+    }else if(beta.star < beta.new){
+      l = l
+      u = beta.new
+    }else{
+      l = beta.new
+      u = u
+    }
+    iter = iter+1
+  }  
+  
+  return(list(0.5*(l+u),iter))
+}
+
+x_min <- function(f, a, b, c){
+  return(b + 0.5*(((f(a)-f(b))*(c-b)^2-(f(c)-f(b))*(b-a)^2)/((f(a)-f(b))*(c-b)+(f(c)-f(b))*(b-a))))
+}
+
+parab_inter <- function(g, l, u, eps=1e-5){
+  beta.star <- 0.5*(l+u)
+  iter = 1
+  while(abs(u-beta.star)>eps && abs(l-beta.star)>eps){
+    beta.new = x_min(g, l, beta.star, u)
+    
+    if(g(beta.new) < g(beta.star)){
+      beta.star <- beta.new
+    }else if(beta.star < beta.new){
+      l = l
+      u = beta.new
+    }else{
+      l = beta.new
+      u = u
+    }
+    iter = iter+1
+  }
+  
+  return(list(beta.star, iter))
+  
+}
+
+parab_inter(g, -2,2)
+```
+
+```{r, eval=FALSE}
+library(dplyr)
+
+t=10000000
+sec.dat <- matrix(NaN, ncol=2, nrow=100)
+parab.dat <-  matrix(NaN, ncol=2, nrow=100)
+gol.dat <- matrix(NaN, ncol=2, nrow=100)
+med.dat <- numeric(100)
+
+for(i in 1:100){
+x <- runif(1000,-t,t)
+
+g <- function(beta){
+  sum(abs(x-beta))
+}
+
+start <- proc.time()[3]
+sec = section_search(g, min(x), max(x))
+end <- proc.time()[3]
+sec.dat[i,1] <- end - start
+sec.dat[i,2] <- sec[[2]]
+
+start <- proc.time()[3]
+gol = golden_search(g, min(x), max(x))
+end <- proc.time()[3]
+gol.dat[i,1] <- end - start
+gol.dat[i,2] <- gol[[2]]
+
+start <- proc.time()[3]
+parab = parab_inter(g, min(x), max(x))
+end <- proc.time()[3]
+parab.dat[i,1] <- end - start
+parab.dat[i,2] <- parab[[2]]
+}
+
+sec.dat[,1] %>% mean() 
+gol.dat[,1] %>% mean()
+parab.dat[,1] %>% mean()
+
+sec.dat[,2] %>% mean() 
+gol.dat[,2] %>% mean()
+parab.dat[,2] %>% mean()
+```
+
+Results for Average run time and number of iterations for all $\theta$ and all three Algorithms.
+
+$\theta$ | Method | Run Time | Iterations
+---------|--------|----------|------------
+$10^0$ | Section  | 0.00364  | 41
+      | | Golden   | 0.00214  | 32
+      | | Parabola | 0.00157  | 8 
+--------|----------|---------|------------    
+$10^1$ | Section  | 0.00140  | 46
+      | | Golden   | 0.00045  | 37
+      |   | Parabola | 0.00147  | 14
+--------|----------|---------|------------    
+$10^2$ | Section  | 0.00104  | 49
+       |  | Golden   | 0.00048  | 41
+       |  | Parabola | 0.00183  | 17  
+--------|----------|---------|------------           
+$10^3$ | Section  | 0.00124  | 54
+       |  | Golden   | 0.00066  | 49
+       |  | Parabola | 0.01134  | 20
+--------|----------|---------|------------           
+$10^4$ | Section  | 0.00089  | 61
+       |  | Golden   | 0.00123  | 66
+       |  | Parabola | 0.00148  | 23
+--------|----------|---------|------------           
+$10^5$ | Section  | 0.00141  | 65
+      |   | Golden   | 0.00240  | 160
+       |  | Parabola | 0.00184  | 25
+--------|----------|---------|------------           
+$10^6$ | Section  | 0.00130  | 69
+       |  | Golden   | 0.00621  | 470
+       |  | Parabola | 0.00154  | 27
+--------|----------|---------|------------           
+$10^7$ | Section  | 0.0244   | 73
+      |   | Golden   | 0.00269  | 147
+       |  | Parabola | 0.00266  | 31
+
+Parabolic interpolation has consistently the fewest number of iterations. It is also usually the fastest. Sometimes the Golden Search is faster. This could be because the parabolic relies on many more minimum evaluations from parabolars which could cost more time. The number of iterations increases as $\theta$ increases for all three algorithms.\newline
+
+**2.** 
+
+```{r}
+beta0.seq <- seq(-5,5,0.1)
+ans <- numeric(length(beta0.seq))
+
+i=1
+for(beta0 in beta0.seq){
+  beta = beta0
+  iter = 1
+  while(abs(pnorm(beta)-0.99)>1e-10){
+    beta <- beta - (pnorm(beta)-0.99)/dnorm(beta)
+    iter = iter+1
+    
+    if(abs(beta)>1e10){# stop if beta is infinite
+        ans[i] <- -1
+        i = i+1
+        break
+    }
+  }
+  
+  if(abs(beta) < 1e10){
+    ans[i] <- iter
+    i = i+1
+  }
+  
+}
+
+plot(beta0.seq, ans, xlab="Beta_0", ylab="Iterations")
+
+```
+
+We set the number of iterations to -1 if the algorithm doesn't converge. We can see that approximately for $\beta_0\in(-1,3)$, the algorithm converges with roughly the same number of iterations. Outisde of these starting values, however, the algorithm fails to converage because $\beta\to\infty$.
+
+
+
+
+
+
+
